@@ -1,4 +1,4 @@
-from flask import Flask, request,jsonify, send_from_directory, session, redirect
+from flask import Flask, request, jsonify, send_from_directory, session, redirect
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -12,7 +12,9 @@ from dotenv import load_dotenv
 # =========================================================
 
 BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
 )
 
 ENV_FILE = os.path.join(
@@ -20,13 +22,17 @@ ENV_FILE = os.path.join(
     ".env"
 )
 
+print("======================================")
 print("ENV FILE:", ENV_FILE)
 print("ENV EXISTS:", os.path.exists(ENV_FILE))
+print("======================================")
+
 
 load_dotenv(
     ENV_FILE,
     override=True
 )
+
 
 # =========================================================
 # FLASK APP
@@ -34,17 +40,49 @@ load_dotenv(
 
 app = Flask(__name__)
 
+
+# Same-origin website ke liye CORS required nahi hai,
+# lekin existing project compatibility ke liye enabled rakha hai.
 CORS(app)
 
 
 # =========================================================
-# ADMIN LOGIN SETTINGS
+# SESSION CONFIGURATION
 # =========================================================
 
 app.secret_key = os.getenv(
     "SECRET_KEY",
     "temporary-secret-key-change-this"
 )
+
+
+# Session 8 hours tak valid rahegi
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    hours=8
+)
+
+
+# Browser JavaScript ko session cookie read nahi karne dena
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+
+# Normal same-site protection
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+
+# Render HTTPS par secure cookie
+# Local computer par HTTP hone par False rahega
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.getenv(
+        "SESSION_COOKIE_SECURE",
+        "false"
+    ).lower() == "true"
+)
+
+
+# =========================================================
+# ADMIN LOGIN SETTINGS
+# =========================================================
 
 ADMIN_USERNAME = os.getenv(
     "ADMIN_USERNAME",
@@ -58,10 +96,12 @@ ADMIN_PASSWORD = os.getenv(
 
 
 # =========================================================
-# NEON POSTGRESQL DATABASE
+# DATABASE
 # =========================================================
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL"
+)
 
 
 # =========================================================
@@ -71,13 +111,15 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 def get_database():
 
     if not DATABASE_URL:
+
         raise Exception(
             "DATABASE_URL environment variable is missing."
         )
 
     connection = psycopg2.connect(
         DATABASE_URL,
-        cursor_factory=RealDictCursor
+        cursor_factory=RealDictCursor,
+        connect_timeout=10
     )
 
     return connection
@@ -90,7 +132,10 @@ def get_database():
 def get_india_time():
 
     india_timezone = timezone(
-        timedelta(hours=5, minutes=30)
+        timedelta(
+            hours=5,
+            minutes=30
+        )
     )
 
     return datetime.now(
@@ -106,11 +151,15 @@ def get_india_time():
 
 def create_table():
 
-    connection = get_database()
-
-    cursor = connection.cursor()
+    connection = None
+    cursor = None
 
     try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
 
         # -------------------------------------------------
         # CREATE BOOKINGS TABLE
@@ -142,14 +191,17 @@ def create_table():
 
 
         # -------------------------------------------------
-        # CHECK EXISTING COLUMNS
+        # GET EXISTING COLUMNS
         # -------------------------------------------------
 
         cursor.execute("""
             SELECT column_name
+
             FROM information_schema.columns
+
             WHERE table_name = 'bookings'
         """)
+
 
         columns = [
             column["column_name"]
@@ -158,7 +210,7 @@ def create_table():
 
 
         # -------------------------------------------------
-        # ADD MESSAGE COLUMN IF MISSING
+        # MESSAGE COLUMN
         # -------------------------------------------------
 
         if "message" not in columns:
@@ -169,12 +221,12 @@ def create_table():
             """)
 
             print(
-                "Message column added!"
+                "Message column added."
             )
 
 
         # -------------------------------------------------
-        # ADD STATUS COLUMN IF MISSING
+        # STATUS COLUMN
         # -------------------------------------------------
 
         if "status" not in columns:
@@ -185,12 +237,12 @@ def create_table():
             """)
 
             print(
-                "Status column added!"
+                "Status column added."
             )
 
 
         # -------------------------------------------------
-        # ADD RECEIVED_AT COLUMN IF MISSING
+        # RECEIVED_AT COLUMN
         # -------------------------------------------------
 
         if "received_at" not in columns:
@@ -201,7 +253,7 @@ def create_table():
             """)
 
             print(
-                "Received At column added!"
+                "Received At column added."
             )
 
 
@@ -211,19 +263,23 @@ def create_table():
 
         cursor.execute("""
             UPDATE bookings
+
             SET status = 'Pending'
+
             WHERE status IS NULL
             OR status = ''
         """)
 
 
         # -------------------------------------------------
-        # FIX OLD BOOKINGS RECEIVED TIME
+        # FIX OLD BOOKING TIME
         # -------------------------------------------------
 
         cursor.execute("""
             UPDATE bookings
+
             SET received_at = %s
+
             WHERE received_at IS NULL
             OR received_at = ''
         """, (
@@ -233,21 +289,17 @@ def create_table():
 
         connection.commit()
 
-        print(
-            "======================================"
-        )
 
-        print(
-            "Neon PostgreSQL bookings table ready!"
-        )
+        print("======================================")
+        print("Neon PostgreSQL bookings table ready!")
+        print("======================================")
 
-        print(
-            "======================================"
-        )
 
     except Exception as error:
 
-        connection.rollback()
+        if connection:
+
+            connection.rollback()
 
         print(
             "DATABASE INITIALIZATION ERROR:"
@@ -259,10 +311,16 @@ def create_table():
 
         raise
 
+
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor:
+
+            cursor.close()
+
+        if connection:
+
+            connection.close()
 
 
 # =========================================================
@@ -289,8 +347,52 @@ def home():
 # WEBSITE FILES
 # =========================================================
 
-@app.route("/<path:filename>")
+@app.route(
+    "/<path:filename>"
+)
 def website_files(filename):
+
+    # -----------------------------------------------------
+    # SECURITY
+    # Sensitive files ko public access se block karo
+    # -----------------------------------------------------
+
+    normalized_path = os.path.normpath(
+        filename
+    ).replace("\\", "/")
+
+
+    blocked_files = [
+
+        ".env",
+
+        ".git",
+
+        "requirements.txt",
+
+        "app.py",
+
+        "backend",
+
+        "__pycache__"
+
+    ]
+
+
+    first_part = normalized_path.split("/")[0]
+
+
+    if (
+        normalized_path.startswith(".")
+        or
+        first_part in blocked_files
+    ):
+
+        return jsonify({
+            "success": False,
+            "message": "Not found."
+        }), 404
+
 
     return send_from_directory(
         BASE_DIR,
@@ -302,16 +404,20 @@ def website_files(filename):
 # ADMIN LOGIN PAGE
 # =========================================================
 
-@app.route("/admin/login")
+@app.route(
+    "/admin/login",
+    methods=["GET"]
+)
 def admin_login_page():
 
     if session.get(
         "admin_logged_in"
-    ):
+    ) is True:
 
         return redirect(
             "/admin"
         )
+
 
     return send_from_directory(
         os.path.join(
@@ -332,7 +438,10 @@ def admin_login_page():
 )
 def admin_login():
 
-    data = request.get_json()
+    data = request.get_json(
+        silent=True
+    )
+
 
     if not data:
 
@@ -343,14 +452,25 @@ def admin_login():
         }), 400
 
 
-    username = data.get(
-        "username"
+    username = str(
+        data.get(
+            "username",
+            ""
+        )
+    ).strip()
+
+
+    password = str(
+        data.get(
+            "password",
+            ""
+        )
     )
 
-    password = data.get(
-        "password"
-    )
 
+    # -----------------------------------------------------
+    # CHECK LOGIN
+    # -----------------------------------------------------
 
     if (
         username == ADMIN_USERNAME
@@ -358,9 +478,19 @@ def admin_login():
         password == ADMIN_PASSWORD
     ):
 
+        # Purani session data clear
+        session.clear()
+
+
+        # Session ko permanent banao
+        session.permanent = True
+
+
+        # Admin login state
         session[
             "admin_logged_in"
         ] = True
+
 
         return jsonify({
             "success": True,
@@ -386,10 +516,8 @@ def admin_login():
 )
 def admin_logout():
 
-    session.pop(
-        "admin_logged_in",
-        None
-    )
+    session.clear()
+
 
     return jsonify({
         "success": True,
@@ -402,16 +530,17 @@ def admin_logout():
 # ADMIN PAGE
 # =========================================================
 
-@app.route("/admin")
+@app.route(
+    "/admin"
+)
 def admin_page():
 
-    if not session.get(
-        "admin_logged_in"
-    ):
+    if not admin_required():
 
         return redirect(
             "/admin/login"
         )
+
 
     return send_from_directory(
         os.path.join(
@@ -431,8 +560,7 @@ def admin_required():
     return (
         session.get(
             "admin_logged_in"
-        )
-        is True
+        ) is True
     )
 
 
@@ -440,12 +568,15 @@ def admin_required():
 # ADMIN JAVASCRIPT
 # =========================================================
 
-@app.route("/admin.js")
+@app.route(
+    "/admin.js"
+)
 def admin_javascript():
 
     if not admin_required():
 
         return "", 401
+
 
     return send_from_directory(
         os.path.join(
@@ -466,10 +597,13 @@ def admin_javascript():
 )
 def booking():
 
-    data = request.get_json()
+    data = request.get_json(
+        silent=True
+    )
+
 
     # -----------------------------------------------------
-    # CHECK JSON DATA
+    # CHECK JSON
     # -----------------------------------------------------
 
     if not data:
@@ -482,33 +616,55 @@ def booking():
 
 
     # -----------------------------------------------------
-    # GET BOOKING DATA
+    # GET DATA
     # -----------------------------------------------------
 
-    name = data.get(
-        "name"
-    )
+    name = str(
+        data.get(
+            "name",
+            ""
+        )
+    ).strip()
 
-    mobile = data.get(
-        "mobile"
-    )
 
-    service = data.get(
-        "service"
-    )
+    mobile = str(
+        data.get(
+            "mobile",
+            ""
+        )
+    ).strip()
 
-    date = data.get(
-        "date"
-    )
 
-    time = data.get(
-        "time"
-    )
+    service = str(
+        data.get(
+            "service",
+            ""
+        )
+    ).strip()
 
-    message = data.get(
-        "message",
-        ""
-    )
+
+    date = str(
+        data.get(
+            "date",
+            ""
+        )
+    ).strip()
+
+
+    time = str(
+        data.get(
+            "time",
+            ""
+        )
+    ).strip()
+
+
+    message = str(
+        data.get(
+            "message",
+            ""
+        )
+    ).strip()
 
 
     # -----------------------------------------------------
@@ -517,10 +673,14 @@ def booking():
 
     if (
         not name
-        or not mobile
-        or not service
-        or not date
-        or not time
+        or
+        not mobile
+        or
+        not service
+        or
+        not date
+        or
+        not time
     ):
 
         return jsonify({
@@ -531,21 +691,26 @@ def booking():
 
 
     # -----------------------------------------------------
-    # EXACT INDIA RECEIVED TIME
+    # INDIA RECEIVED TIME
     # -----------------------------------------------------
 
     received_at = get_india_time()
 
 
-    # -----------------------------------------------------
-    # SAVE BOOKING
-    # -----------------------------------------------------
+    connection = None
+    cursor = None
 
-    connection = get_database()
-
-    cursor = connection.cursor()
 
     try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
+
+        # -------------------------------------------------
+        # INSERT BOOKING
+        # -------------------------------------------------
 
         cursor.execute("""
             INSERT INTO bookings
@@ -560,7 +725,17 @@ def booking():
                 received_at
             )
 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
 
             RETURNING id
         """, (
@@ -574,15 +749,41 @@ def booking():
             received_at
         ))
 
+
         result = cursor.fetchone()
 
-        booking_id = result["id"]
+
+        booking_id = result[
+            "id"
+        ]
+
 
         connection.commit()
 
+
+        print(
+            f"New booking #{booking_id} "
+            f"received at {received_at}"
+        )
+
+
+        return jsonify({
+            "success": True,
+            "message":
+                "Booking saved successfully!",
+            "booking_id":
+                booking_id,
+            "received_at":
+                received_at
+        })
+
+
     except Exception as error:
 
-        connection.rollback()
+        if connection:
+
+            connection.rollback()
+
 
         print(
             "BOOKING SAVE ERROR:"
@@ -592,41 +793,23 @@ def booking():
             error
         )
 
+
         return jsonify({
             "success": False,
             "message":
                 "Unable to save booking."
         }), 500
 
+
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor:
 
+            cursor.close()
 
-    # -----------------------------------------------------
-    # SERVER LOG
-    # -----------------------------------------------------
+        if connection:
 
-    print(
-        f"New booking #{booking_id} "
-        f"received at {received_at}"
-    )
-
-
-    # -----------------------------------------------------
-    # RESPONSE
-    # -----------------------------------------------------
-
-    return jsonify({
-        "success": True,
-        "message":
-            "Booking saved successfully!",
-        "booking_id":
-            booking_id,
-        "received_at":
-            received_at
-    })
+            connection.close()
 
 
 # =========================================================
@@ -648,11 +831,16 @@ def admin_bookings():
         }), 401
 
 
-    connection = get_database()
+    connection = None
+    cursor = None
 
-    cursor = connection.cursor()
 
     try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
 
         cursor.execute("""
             SELECT
@@ -680,7 +868,15 @@ def admin_bookings():
             ORDER BY id DESC
         """)
 
+
         bookings = cursor.fetchall()
+
+
+        return jsonify([
+            dict(booking)
+            for booking in bookings
+        ])
+
 
     except Exception as error:
 
@@ -692,8 +888,6 @@ def admin_bookings():
             error
         )
 
-        cursor.close()
-        connection.close()
 
         return jsonify({
             "success": False,
@@ -701,14 +895,16 @@ def admin_bookings():
                 "Unable to load bookings."
         }), 500
 
-    cursor.close()
-    connection.close()
 
+    finally:
 
-    return jsonify([
-        dict(booking)
-        for booking in bookings
-    ])
+        if cursor:
+
+            cursor.close()
+
+        if connection:
+
+            connection.close()
 
 
 # =========================================================
@@ -732,7 +928,10 @@ def update_booking_status(
         }), 401
 
 
-    data = request.get_json()
+    data = request.get_json(
+        silent=True
+    )
+
 
     if not data:
 
@@ -753,10 +952,15 @@ def update_booking_status(
     # -----------------------------------------------------
 
     allowed_statuses = [
+
         "Pending",
+
         "Confirmed",
+
         "Completed",
+
         "Cancelled"
+
     ]
 
 
@@ -769,12 +973,16 @@ def update_booking_status(
         }), 400
 
 
-    connection = get_database()
-
-    cursor = connection.cursor()
+    connection = None
+    cursor = None
 
 
     try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
 
         cursor.execute("""
             UPDATE bookings
@@ -787,14 +995,10 @@ def update_booking_status(
             booking_id
         ))
 
-        connection.commit()
-
-
-        # -------------------------------------------------
-        # CHECK BOOKING
-        # -------------------------------------------------
 
         if cursor.rowcount == 0:
+
+            connection.rollback()
 
             return jsonify({
                 "success": False,
@@ -803,9 +1007,28 @@ def update_booking_status(
             }), 404
 
 
+        connection.commit()
+
+
+        print(
+            f"Booking {booking_id} "
+            f"status changed to {status}"
+        )
+
+
+        return jsonify({
+            "success": True,
+            "message":
+                "Booking status updated successfully."
+        })
+
+
     except Exception as error:
 
-        connection.rollback()
+        if connection:
+
+            connection.rollback()
+
 
         print(
             "STATUS UPDATE ERROR:"
@@ -815,29 +1038,23 @@ def update_booking_status(
             error
         )
 
+
         return jsonify({
             "success": False,
             "message":
                 "Unable to update booking status."
         }), 500
 
+
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor:
 
+            cursor.close()
 
-    print(
-        f"Booking {booking_id} "
-        f"status changed to {status}"
-    )
+        if connection:
 
-
-    return jsonify({
-        "success": True,
-        "message":
-            "Booking status updated successfully."
-    })
+            connection.close()
 
 
 # =========================================================
@@ -861,12 +1078,16 @@ def delete_booking(
         }), 401
 
 
-    connection = get_database()
-
-    cursor = connection.cursor()
+    connection = None
+    cursor = None
 
 
     try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
 
         cursor.execute("""
             DELETE FROM bookings
@@ -876,14 +1097,10 @@ def delete_booking(
             booking_id,
         ))
 
-        connection.commit()
-
-
-        # -------------------------------------------------
-        # CHECK BOOKING
-        # -------------------------------------------------
 
         if cursor.rowcount == 0:
+
+            connection.rollback()
 
             return jsonify({
                 "success": False,
@@ -892,9 +1109,27 @@ def delete_booking(
             }), 404
 
 
+        connection.commit()
+
+
+        print(
+            f"Booking {booking_id} deleted!"
+        )
+
+
+        return jsonify({
+            "success": True,
+            "message":
+                "Booking deleted successfully."
+        })
+
+
     except Exception as error:
 
-        connection.rollback()
+        if connection:
+
+            connection.rollback()
+
 
         print(
             "DELETE BOOKING ERROR:"
@@ -904,36 +1139,37 @@ def delete_booking(
             error
         )
 
+
         return jsonify({
             "success": False,
             "message":
                 "Unable to delete booking."
         }), 500
 
+
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor:
 
+            cursor.close()
 
-    print(
-        f"Booking {booking_id} deleted!"
-    )
+        if connection:
 
-
-    return jsonify({
-        "success": True,
-        "message":
-            "Booking deleted successfully."
-    })
+            connection.close()
 
 
 # =========================================================
 # HEALTH CHECK
 # =========================================================
 
-@app.route("/health")
+@app.route(
+    "/health"
+)
 def health():
+
+    connection = None
+    cursor = None
+
 
     try:
 
@@ -941,35 +1177,69 @@ def health():
 
         cursor = connection.cursor()
 
-        cursor.execute("SELECT 1")
+
+        cursor.execute(
+            "SELECT 1"
+        )
+
 
         cursor.fetchone()
 
-        cursor.close()
-        connection.close()
 
         return jsonify({
             "success": True,
-            "database": "connected"
+            "database":
+                "connected"
         })
+
 
     except Exception as error:
 
+        print(
+            "HEALTH CHECK ERROR:"
+        )
+
+        print(
+            error
+        )
+
+
         return jsonify({
             "success": False,
-            "database": "error",
-            "message": str(error)
+            "database":
+                "error",
+            "message":
+                str(error)
         }), 500
 
 
+    finally:
+
+        if cursor:
+
+            cursor.close()
+
+        if connection:
+
+            connection.close()
+
+
 # =========================================================
-# START LOCAL SERVER
+# START SERVER
 # =========================================================
 
 if __name__ == "__main__":
 
+    port = int(
+        os.getenv(
+            "PORT",
+            "5000"
+        )
+    )
+
+
     app.run(
         debug=False,
-        host="127.0.0.1",
-        port=5000
+        host="0.0.0.0",
+        port=port
     )

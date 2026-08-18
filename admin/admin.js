@@ -1,6 +1,11 @@
-// =========================
+// =========================================================
+// ADMIN DASHBOARD JAVASCRIPT
+// =========================================================
+
+
+// =========================================================
 // GLOBAL DATA
-// =========================
+// =========================================================
 
 let allBookings = [];
 
@@ -13,9 +18,9 @@ let firstLoadCompleted = false;
 let isLoading = false;
 
 
-// =========================
+// =========================================================
 // NOTIFICATION SOUND
-// =========================
+// =========================================================
 
 const notificationSound =
     new Audio(
@@ -25,15 +30,17 @@ const notificationSound =
 notificationSound.volume = 1.0;
 
 
-// =========================
-// PLAY SOUND
-// =========================
+// =========================================================
+// PLAY NOTIFICATION SOUND
+// =========================================================
 
 function playNotificationSound() {
 
     notificationSound.currentTime = 0;
 
-    notificationSound.play()
+
+    notificationSound
+        .play()
         .then(function () {
 
             console.log(
@@ -53,11 +60,13 @@ function playNotificationSound() {
 }
 
 
-// =========================
+// =========================================================
 // CHECK NEW BOOKINGS
-// =========================
+// =========================================================
 
-function checkForNewBookings(bookings) {
+function checkForNewBookings(
+    bookings
+) {
 
     const currentBookingIds =
         new Set(
@@ -72,6 +81,10 @@ function checkForNewBookings(bookings) {
             )
         );
 
+
+    // -----------------------------------------------------
+    // FIRST LOAD
+    // -----------------------------------------------------
 
     if (!firstLoadCompleted) {
 
@@ -126,9 +139,9 @@ function checkForNewBookings(bookings) {
 }
 
 
-// =========================
+// =========================================================
 // NEW BOOKING NOTIFICATION
-// =========================
+// =========================================================
 
 function showNewBookingNotification() {
 
@@ -157,10 +170,13 @@ function showNewBookingNotification() {
             new Notification(
                 "🎮 New Booking - Shekhawati Gaming Zone",
                 {
+
                     body:
                         "A new booking has been received.",
+
                     icon:
                         "/favicon.ico"
+
                 }
             );
 
@@ -179,19 +195,28 @@ function showNewBookingNotification() {
 }
 
 
-// =========================
-// REQUEST NOTIFICATION
-// =========================
+// =========================================================
+// REQUEST NOTIFICATION PERMISSION
+// =========================================================
 
 function requestNotificationPermission() {
 
     if (
-        "Notification" in window &&
-        Notification.permission ===
-            "default"
+        !("Notification" in window)
     ) {
 
-        Notification.requestPermission()
+        return;
+
+    }
+
+
+    if (
+        Notification.permission ===
+        "default"
+    ) {
+
+        Notification
+            .requestPermission()
             .then(
                 function (permission) {
 
@@ -218,9 +243,9 @@ function requestNotificationPermission() {
 }
 
 
-// =========================
+// =========================================================
 // LOAD BOOKINGS
-// =========================
+// =========================================================
 
 async function loadBookings(
     showLoading = true
@@ -275,25 +300,37 @@ async function loadBookings(
                 "/admin/bookings?_=" +
                 Date.now(),
                 {
-                    method: "GET",
-                    cache: "no-store"
+
+                    method:
+                        "GET",
+
+                    cache:
+                        "no-store",
+
+                    credentials:
+                        "same-origin"
+
                 }
             );
 
 
+        // -------------------------------------------------
+        // LOGIN EXPIRED
+        // -------------------------------------------------
+
+        if (
+            response.status === 401
+        ) {
+
+            window.location.href =
+                "/admin/login";
+
+            return;
+
+        }
+
+
         if (!response.ok) {
-
-            if (
-                response.status === 401
-            ) {
-
-                window.location.href =
-                    "/admin/login";
-
-                return;
-
-            }
-
 
             throw new Error(
                 "Server response: " +
@@ -307,7 +344,11 @@ async function loadBookings(
             await response.json();
 
 
-        if (!Array.isArray(bookings)) {
+        if (
+            !Array.isArray(
+                bookings
+            )
+        ) {
 
             throw new Error(
                 "Invalid booking data."
@@ -316,14 +357,26 @@ async function loadBookings(
         }
 
 
+        // -------------------------------------------------
+        // NEW BOOKING CHECK
+        // -------------------------------------------------
+
         checkForNewBookings(
             bookings
         );
 
 
+        // -------------------------------------------------
+        // SAVE GLOBAL BOOKINGS
+        // -------------------------------------------------
+
         allBookings =
             bookings;
 
+
+        // -------------------------------------------------
+        // TOTAL BOOKINGS
+        // -------------------------------------------------
 
         const totalBookings =
             document.getElementById(
@@ -339,10 +392,18 @@ async function loadBookings(
         }
 
 
+        // -------------------------------------------------
+        // STATUS COUNTERS
+        // -------------------------------------------------
+
         updateStatusCounters(
             bookings
         );
 
+
+        // -------------------------------------------------
+        // FILTER VALUES
+        // -------------------------------------------------
 
         const searchInput =
             document.getElementById(
@@ -423,9 +484,9 @@ async function loadBookings(
 }
 
 
-// =========================
+// =========================================================
 // MANUAL REFRESH
-// =========================
+// =========================================================
 
 function manualRefresh() {
 
@@ -448,9 +509,9 @@ function manualRefresh() {
 }
 
 
-// =========================
+// =========================================================
 // STATUS COUNTERS
-// =========================
+// =========================================================
 
 function updateStatusCounters(
     bookings
@@ -481,6 +542,7 @@ function updateStatusCounters(
                 pendingCount++;
 
             }
+
             else if (
                 bookingStatus ===
                 "Confirmed"
@@ -489,6 +551,7 @@ function updateStatusCounters(
                 confirmedCount++;
 
             }
+
             else if (
                 bookingStatus ===
                 "Completed"
@@ -497,6 +560,7 @@ function updateStatusCounters(
                 completedCount++;
 
             }
+
             else if (
                 bookingStatus ===
                 "Cancelled"
@@ -510,35 +574,60 @@ function updateStatusCounters(
     );
 
 
-    document.getElementById(
-        "pendingBookings"
-    ).textContent =
-        pendingCount;
+    setText(
+        "pendingBookings",
+        pendingCount
+    );
 
 
-    document.getElementById(
-        "confirmedBookings"
-    ).textContent =
-        confirmedCount;
+    setText(
+        "confirmedBookings",
+        confirmedCount
+    );
 
 
-    document.getElementById(
-        "completedBookings"
-    ).textContent =
-        completedCount;
+    setText(
+        "completedBookings",
+        completedCount
+    );
 
 
-    document.getElementById(
-        "cancelledBookings"
-    ).textContent =
-        cancelledCount;
+    setText(
+        "cancelledBookings",
+        cancelledCount
+    );
 
 }
 
 
-// =========================
+// =========================================================
+// SAFE TEXT SETTER
+// =========================================================
+
+function setText(
+    id,
+    value
+) {
+
+    const element =
+        document.getElementById(
+            id
+        );
+
+
+    if (element) {
+
+        element.textContent =
+            value;
+
+    }
+
+}
+
+
+// =========================================================
 // DISPLAY BOOKINGS
-// =========================
+// =========================================================
 
 function displayBookings(
     bookings
@@ -744,9 +833,9 @@ function displayBookings(
     );
 
 
-    // =========================
+    // =====================================================
     // STATUS EVENTS
-    // =========================
+    // =====================================================
 
     table
         .querySelectorAll(
@@ -771,9 +860,9 @@ function displayBookings(
         );
 
 
-    // =========================
+    // =====================================================
     // VIEW EVENTS
-    // =========================
+    // =====================================================
 
     table
         .querySelectorAll(
@@ -797,9 +886,9 @@ function displayBookings(
         );
 
 
-    // =========================
+    // =====================================================
     // DELETE EVENTS
-    // =========================
+    // =====================================================
 
     table
         .querySelectorAll(
@@ -825,11 +914,13 @@ function displayBookings(
 }
 
 
-// =========================
+// =========================================================
 // ESCAPE HTML
-// =========================
+// =========================================================
 
-function escapeHtml(value) {
+function escapeHtml(
+    value
+) {
 
     if (
         value === null ||
@@ -871,11 +962,13 @@ function escapeHtml(value) {
 }
 
 
-// =========================
+// =========================================================
 // VIEW BOOKING
-// =========================
+// =========================================================
 
-function viewBooking(id) {
+function viewBooking(
+    id
+) {
 
     const booking =
         allBookings.find(
@@ -900,59 +993,58 @@ function viewBooking(id) {
     }
 
 
-    document.getElementById(
-        "viewId"
-    ).textContent =
-        booking.id || "-";
+    setText(
+        "viewId",
+        booking.id || "-"
+    );
 
 
-    document.getElementById(
-        "viewName"
-    ).textContent =
-        booking.name || "-";
+    setText(
+        "viewName",
+        booking.name || "-"
+    );
 
 
-    document.getElementById(
-        "viewMobile"
-    ).textContent =
-        booking.mobile || "-";
+    setText(
+        "viewMobile",
+        booking.mobile || "-"
+    );
 
 
-    document.getElementById(
-        "viewService"
-    ).textContent =
-        booking.service || "-";
+    setText(
+        "viewService",
+        booking.service || "-"
+    );
 
 
-    document.getElementById(
-        "viewDate"
-    ).textContent =
-        booking.date || "-";
+    setText(
+        "viewDate",
+        booking.date || "-"
+    );
 
 
-    document.getElementById(
-        "viewTime"
-    ).textContent =
-        booking.time || "-";
+    setText(
+        "viewTime",
+        booking.time || "-"
+    );
 
 
-    document.getElementById(
-        "viewReceivedAt"
-    ).textContent =
-        booking.received_at || "-";
+    setText(
+        "viewReceivedAt",
+        booking.received_at || "-"
+    );
 
 
-    document.getElementById(
-        "viewStatus"
-    ).textContent =
-        booking.status ||
-        "Pending";
+    setText(
+        "viewStatus",
+        booking.status || "Pending"
+    );
 
 
-    document.getElementById(
-        "viewMessage"
-    ).textContent =
-        booking.message || "-";
+    setText(
+        "viewMessage",
+        booking.message || "-"
+    );
 
 
     const modal =
@@ -971,9 +1063,9 @@ function viewBooking(id) {
 }
 
 
-// =========================
+// =========================================================
 // CLOSE MODAL
-// =========================
+// =========================================================
 
 function closeBookingModal() {
 
@@ -993,9 +1085,9 @@ function closeBookingModal() {
 }
 
 
-// =========================
-// MODAL BACKGROUND CLICK
-// =========================
+// =========================================================
+// MODAL CLICK
+// =========================================================
 
 window.addEventListener(
     "click",
@@ -1008,7 +1100,8 @@ window.addEventListener(
 
 
         if (
-            event.target === modal
+            event.target ===
+            modal
         ) {
 
             closeBookingModal();
@@ -1019,16 +1112,17 @@ window.addEventListener(
 );
 
 
-// =========================
+// =========================================================
 // ESC KEY
-// =========================
+// =========================================================
 
 document.addEventListener(
     "keydown",
     function (event) {
 
         if (
-            event.key === "Escape"
+            event.key ===
+            "Escape"
         ) {
 
             closeBookingModal();
@@ -1039,9 +1133,9 @@ document.addEventListener(
 );
 
 
-// =========================
-// FILTER
-// =========================
+// =========================================================
+// FILTER BOOKINGS
+// =========================================================
 
 function filterBookings() {
 
@@ -1161,27 +1255,26 @@ function filterBookings() {
         );
 
 
-    if (status) {
-
-        if (
+    if (
+        status &&
+        (
             searchText ||
             selectedDate
-        ) {
+        )
+    ) {
 
-            status.textContent =
-                filteredBookings.length +
-                " booking(s) found.";
-
-        }
+        status.textContent =
+            filteredBookings.length +
+            " booking(s) found.";
 
     }
 
 }
 
 
-// =========================
+// =========================================================
 // CLEAR FILTERS
-// =========================
+// =========================================================
 
 function clearFilters() {
 
@@ -1199,14 +1292,16 @@ function clearFilters() {
 
     if (searchInput) {
 
-        searchInput.value = "";
+        searchInput.value =
+            "";
 
     }
 
 
     if (dateFilter) {
 
-        dateFilter.value = "";
+        dateFilter.value =
+            "";
 
     }
 
@@ -1232,9 +1327,9 @@ function clearFilters() {
 }
 
 
-// =========================
+// =========================================================
 // UPDATE STATUS
-// =========================
+// =========================================================
 
 async function updateStatus(
     id,
@@ -1247,24 +1342,35 @@ async function updateStatus(
             await fetch(
                 `/admin/bookings/${id}/status`,
                 {
-                    method: "PUT",
+
+                    method:
+                        "PUT",
 
                     headers: {
+
                         "Content-Type":
                             "application/json"
+
                     },
+
+                    credentials:
+                        "same-origin",
 
                     body:
                         JSON.stringify({
+
                             status:
                                 newStatus
+
                         })
+
                 }
             );
 
 
         if (
-            response.status === 401
+            response.status ===
+            401
         ) {
 
             window.location.href =
@@ -1285,6 +1391,7 @@ async function updateStatus(
         ) {
 
             alert(
+                result.message ||
                 "Failed to update booking status."
             );
 
@@ -1350,11 +1457,13 @@ async function updateStatus(
 }
 
 
-// =========================
+// =========================================================
 // DELETE BOOKING
-// =========================
+// =========================================================
 
-async function deleteBooking(id) {
+async function deleteBooking(
+    id
+) {
 
     const confirmDelete =
         confirm(
@@ -1375,13 +1484,20 @@ async function deleteBooking(id) {
             await fetch(
                 `/admin/bookings/${id}`,
                 {
-                    method: "DELETE"
+
+                    method:
+                        "DELETE",
+
+                    credentials:
+                        "same-origin"
+
                 }
             );
 
 
         if (
-            response.status === 401
+            response.status ===
+            401
         ) {
 
             window.location.href =
@@ -1402,6 +1518,7 @@ async function deleteBooking(id) {
         ) {
 
             alert(
+                result.message ||
                 "Failed to delete booking."
             );
 
@@ -1427,10 +1544,18 @@ async function deleteBooking(id) {
         );
 
 
-        document.getElementById(
-            "totalBookings"
-        ).textContent =
-            allBookings.length;
+        const totalBookings =
+            document.getElementById(
+                "totalBookings"
+            );
+
+
+        if (totalBookings) {
+
+            totalBookings.textContent =
+                allBookings.length;
+
+        }
 
 
         updateStatusCounters(
@@ -1472,9 +1597,9 @@ async function deleteBooking(id) {
 }
 
 
-// =========================
+// =========================================================
 // LOGOUT
-// =========================
+// =========================================================
 
 async function logoutAdmin() {
 
@@ -1497,9 +1622,28 @@ async function logoutAdmin() {
             await fetch(
                 "/admin/logout",
                 {
-                    method: "POST"
+
+                    method:
+                        "POST",
+
+                    credentials:
+                        "same-origin"
+
                 }
             );
+
+
+        if (
+            response.status ===
+            401
+        ) {
+
+            window.location.href =
+                "/admin/login";
+
+            return;
+
+        }
 
 
         const result =
@@ -1512,6 +1656,7 @@ async function logoutAdmin() {
         ) {
 
             alert(
+                result.message ||
                 "Failed to logout."
             );
 
@@ -1520,11 +1665,16 @@ async function logoutAdmin() {
         }
 
 
-        if (autoRefreshTimer) {
+        if (
+            autoRefreshTimer
+        ) {
 
             clearInterval(
                 autoRefreshTimer
             );
+
+            autoRefreshTimer =
+                null;
 
         }
 
@@ -1550,9 +1700,9 @@ async function logoutAdmin() {
 }
 
 
-// =========================
+// =========================================================
 // DOM READY
-// =========================
+// =========================================================
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -1596,17 +1746,17 @@ document.addEventListener(
 );
 
 
-// =========================
+// =========================================================
 // INITIAL LOAD
-// =========================
+// =========================================================
 
 loadBookings(true);
 
 
-// =========================
+// =========================================================
 // AUTO REFRESH
 // EVERY 5 SECONDS
-// =========================
+// =========================================================
 
 autoRefreshTimer =
     setInterval(
