@@ -6,11 +6,10 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 
-# =========================
+# =========================================================
 # LOAD ENVIRONMENT VARIABLES
-# =========================
+# =========================================================
 
-# .env file project ke main folder se load hogi
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
@@ -20,18 +19,18 @@ load_dotenv(
 )
 
 
-# =========================
+# =========================================================
 # FLASK APP
-# =========================
+# =========================================================
 
 app = Flask(__name__)
 
 CORS(app)
 
 
-# =========================
+# =========================================================
 # ADMIN LOGIN SETTINGS
-# =========================
+# =========================================================
 
 app.secret_key = os.getenv(
     "SECRET_KEY",
@@ -49,16 +48,30 @@ ADMIN_PASSWORD = os.getenv(
 )
 
 
-# =========================
-# DATABASE
-# =========================
+# =========================================================
+# DATABASE SETTINGS
+# =========================================================
+
+# Database ko backend folder ke andar rakhenge
+DATABASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
 
 DATABASE_PATH = os.path.join(
-    BASE_DIR,
-    "backend",
+    DATABASE_DIR,
     "bookings.db"
 )
 
+# Folder ensure karo
+os.makedirs(
+    DATABASE_DIR,
+    exist_ok=True
+)
+
+
+# =========================================================
+# GET DATABASE CONNECTION
+# =========================================================
 
 def get_database():
 
@@ -71,9 +84,9 @@ def get_database():
     return connection
 
 
-# =========================
+# =========================================================
 # INDIA TIME
-# =========================
+# =========================================================
 
 def get_india_time():
 
@@ -88,9 +101,9 @@ def get_india_time():
     )
 
 
-# =========================
+# =========================================================
 # CREATE / UPDATE DATABASE
-# =========================
+# =========================================================
 
 def create_table():
 
@@ -98,118 +111,176 @@ def create_table():
 
     cursor = connection.cursor()
 
+    try:
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bookings (
-
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-            name TEXT NOT NULL,
-
-            mobile TEXT NOT NULL,
-
-            service TEXT NOT NULL,
-
-            date TEXT NOT NULL,
-
-            time TEXT NOT NULL,
-
-            message TEXT,
-
-            status TEXT DEFAULT 'Pending',
-
-            received_at TEXT
-
-        )
-    """)
-
-
-    cursor.execute(
-        "PRAGMA table_info(bookings)"
-    )
-
-
-    columns = [
-        column["name"]
-        for column in cursor.fetchall()
-    ]
-
-
-    # =========================
-    # ADD STATUS IF MISSING
-    # =========================
-
-    if "status" not in columns:
+        # -------------------------------------------------
+        # CREATE BOOKINGS TABLE
+        # -------------------------------------------------
 
         cursor.execute("""
-            ALTER TABLE bookings
-            ADD COLUMN status TEXT DEFAULT 'Pending'
+            CREATE TABLE IF NOT EXISTS bookings (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                name TEXT NOT NULL,
+
+                mobile TEXT NOT NULL,
+
+                service TEXT NOT NULL,
+
+                date TEXT NOT NULL,
+
+                time TEXT NOT NULL,
+
+                message TEXT,
+
+                status TEXT DEFAULT 'Pending',
+
+                received_at TEXT
+
+            )
         """)
 
-        print(
-            "Status column added!"
+
+        # -------------------------------------------------
+        # CHECK EXISTING COLUMNS
+        # -------------------------------------------------
+
+        cursor.execute(
+            "PRAGMA table_info(bookings)"
         )
 
+        columns = [
+            column["name"]
+            for column in cursor.fetchall()
+        ]
 
-    # =========================
-    # ADD RECEIVED_AT IF MISSING
-    # =========================
 
-    if "received_at" not in columns:
+        # -------------------------------------------------
+        # ADD MESSAGE COLUMN IF MISSING
+        # -------------------------------------------------
+
+        if "message" not in columns:
+
+            cursor.execute("""
+                ALTER TABLE bookings
+                ADD COLUMN message TEXT
+            """)
+
+            print(
+                "Message column added!"
+            )
+
+
+        # -------------------------------------------------
+        # ADD STATUS COLUMN IF MISSING
+        # -------------------------------------------------
+
+        if "status" not in columns:
+
+            cursor.execute("""
+                ALTER TABLE bookings
+                ADD COLUMN status TEXT DEFAULT 'Pending'
+            """)
+
+            print(
+                "Status column added!"
+            )
+
+
+        # -------------------------------------------------
+        # ADD RECEIVED_AT COLUMN IF MISSING
+        # -------------------------------------------------
+
+        if "received_at" not in columns:
+
+            cursor.execute("""
+                ALTER TABLE bookings
+                ADD COLUMN received_at TEXT
+            """)
+
+            print(
+                "Received At column added!"
+            )
+
+
+        # -------------------------------------------------
+        # FIX EMPTY STATUS
+        # -------------------------------------------------
 
         cursor.execute("""
-            ALTER TABLE bookings
-            ADD COLUMN received_at TEXT
+            UPDATE bookings
+
+            SET status = 'Pending'
+
+            WHERE status IS NULL
+            OR status = ''
         """)
 
+
+        # -------------------------------------------------
+        # FIX OLD BOOKINGS RECEIVED TIME
+        # -------------------------------------------------
+
+        cursor.execute("""
+            UPDATE bookings
+
+            SET received_at = ?
+
+            WHERE received_at IS NULL
+            OR received_at = ''
+        """, (
+            get_india_time(),
+        ))
+
+
+        connection.commit()
+
         print(
-            "Received At column added!"
+            "======================================"
         )
 
+        print(
+            "Bookings table ready!"
+        )
 
-    # =========================
-    # FIX EMPTY STATUS
-    # =========================
+        print(
+            f"Database: {DATABASE_PATH}"
+        )
 
-    cursor.execute("""
-        UPDATE bookings
+        print(
+            "======================================"
+        )
 
-        SET status = 'Pending'
+    except Exception as error:
 
-        WHERE status IS NULL
-        OR status = ''
-    """)
+        connection.rollback()
 
+        print(
+            "DATABASE INITIALIZATION ERROR:"
+        )
 
-    # =========================
-    # OLD BOOKINGS
-    # =========================
+        print(
+            error
+        )
 
-    cursor.execute("""
-        UPDATE bookings
+        raise
 
-        SET received_at = ?
+    finally:
 
-        WHERE received_at IS NULL
-        OR received_at = ''
-    """, (
-        get_india_time(),
-    ))
-
-
-    connection.commit()
-
-    connection.close()
+        connection.close()
 
 
-    print(
-        "Bookings table ready!"
-    )
+# =========================================================
+# INITIALIZE DATABASE
+# =========================================================
+
+create_table()
 
 
-# =========================
+# =========================================================
 # MAIN WEBSITE
-# =========================
+# =========================================================
 
 @app.route("/")
 def home():
@@ -220,9 +291,9 @@ def home():
     )
 
 
-# =========================
+# =========================================================
 # WEBSITE FILES
-# =========================
+# =========================================================
 
 @app.route("/<path:filename>")
 def website_files(filename):
@@ -233,9 +304,9 @@ def website_files(filename):
     )
 
 
-# =========================
+# =========================================================
 # ADMIN LOGIN PAGE
-# =========================
+# =========================================================
 
 @app.route("/admin/login")
 def admin_login_page():
@@ -248,7 +319,6 @@ def admin_login_page():
             "/admin"
         )
 
-
     return send_from_directory(
         os.path.join(
             BASE_DIR,
@@ -258,9 +328,9 @@ def admin_login_page():
     )
 
 
-# =========================
+# =========================================================
 # ADMIN LOGIN API
-# =========================
+# =========================================================
 
 @app.route(
     "/admin/login",
@@ -269,7 +339,6 @@ def admin_login_page():
 def admin_login():
 
     data = request.get_json()
-
 
     if not data:
 
@@ -299,7 +368,6 @@ def admin_login():
             "admin_logged_in"
         ] = True
 
-
         return jsonify({
             "success": True,
             "message":
@@ -314,9 +382,9 @@ def admin_login():
     }), 401
 
 
-# =========================
+# =========================================================
 # ADMIN LOGOUT
-# =========================
+# =========================================================
 
 @app.route(
     "/admin/logout",
@@ -329,7 +397,6 @@ def admin_logout():
         None
     )
 
-
     return jsonify({
         "success": True,
         "message":
@@ -337,9 +404,9 @@ def admin_logout():
     })
 
 
-# =========================
+# =========================================================
 # ADMIN PAGE
-# =========================
+# =========================================================
 
 @app.route("/admin")
 def admin_page():
@@ -352,7 +419,6 @@ def admin_page():
             "/admin/login"
         )
 
-
     return send_from_directory(
         os.path.join(
             BASE_DIR,
@@ -362,9 +428,9 @@ def admin_page():
     )
 
 
-# =========================
+# =========================================================
 # ADMIN AUTH CHECK
-# =========================
+# =========================================================
 
 def admin_required():
 
@@ -376,9 +442,9 @@ def admin_required():
     )
 
 
-# =========================
+# =========================================================
 # ADMIN JAVASCRIPT
-# =========================
+# =========================================================
 
 @app.route("/admin.js")
 def admin_javascript():
@@ -386,7 +452,6 @@ def admin_javascript():
     if not admin_required():
 
         return "", 401
-
 
     return send_from_directory(
         os.path.join(
@@ -397,9 +462,9 @@ def admin_javascript():
     )
 
 
-# =========================
+# =========================================================
 # NEW BOOKING
-# =========================
+# =========================================================
 
 @app.route(
     "/booking",
@@ -409,6 +474,9 @@ def booking():
 
     data = request.get_json()
 
+    # -----------------------------------------------------
+    # CHECK JSON DATA
+    # -----------------------------------------------------
 
     if not data:
 
@@ -418,6 +486,10 @@ def booking():
                 "Invalid booking data."
         }), 400
 
+
+    # -----------------------------------------------------
+    # GET BOOKING DATA
+    # -----------------------------------------------------
 
     name = data.get(
         "name"
@@ -445,9 +517,9 @@ def booking():
     )
 
 
-    # =========================
+    # -----------------------------------------------------
     # VALIDATION
-    # =========================
+    # -----------------------------------------------------
 
     if (
         not name
@@ -464,62 +536,88 @@ def booking():
         }), 400
 
 
-    # =========================
-    # EXACT RECEIVED TIME
-    # =========================
+    # -----------------------------------------------------
+    # EXACT INDIA RECEIVED TIME
+    # -----------------------------------------------------
 
     received_at = get_india_time()
 
 
-    # =========================
+    # -----------------------------------------------------
     # SAVE BOOKING
-    # =========================
+    # -----------------------------------------------------
 
     connection = get_database()
 
     cursor = connection.cursor()
 
+    try:
 
-    cursor.execute("""
-        INSERT INTO bookings
-        (
+        cursor.execute("""
+            INSERT INTO bookings
+            (
+                name,
+                mobile,
+                service,
+                date,
+                time,
+                message,
+                status,
+                received_at
+            )
+
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             name,
             mobile,
             service,
             date,
             time,
             message,
-            status,
+            "Pending",
             received_at
+        ))
+
+        connection.commit()
+
+        booking_id = cursor.lastrowid
+
+    except Exception as error:
+
+        connection.rollback()
+
+        print(
+            "BOOKING SAVE ERROR:"
         )
 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        name,
-        mobile,
-        service,
-        date,
-        time,
-        message,
-        "Pending",
-        received_at
-    ))
+        print(
+            error
+        )
+
+        return jsonify({
+            "success": False,
+            "message":
+                "Unable to save booking."
+        }), 500
+
+    finally:
+
+        connection.close()
 
 
-    connection.commit()
-
-
-    booking_id = cursor.lastrowid
-
-
-    connection.close()
-
+    # -----------------------------------------------------
+    # SERVER LOG
+    # -----------------------------------------------------
 
     print(
         f"New booking #{booking_id} "
         f"received at {received_at}"
     )
 
+
+    # -----------------------------------------------------
+    # RESPONSE
+    # -----------------------------------------------------
 
     return jsonify({
         "success": True,
@@ -532,9 +630,9 @@ def booking():
     })
 
 
-# =========================
+# =========================================================
 # ADMIN - GET BOOKINGS
-# =========================
+# =========================================================
 
 @app.route(
     "/admin/bookings",
@@ -555,36 +653,53 @@ def admin_bookings():
 
     cursor = connection.cursor()
 
+    try:
 
-    cursor.execute("""
-        SELECT
+        cursor.execute("""
+            SELECT
 
-            id,
+                id,
 
-            name,
+                name,
 
-            mobile,
+                mobile,
 
-            service,
+                service,
 
-            date,
+                date,
 
-            time,
+                time,
 
-            received_at,
+                received_at,
 
-            message,
+                message,
 
-            status
+                status
 
-        FROM bookings
+            FROM bookings
 
-        ORDER BY id DESC
-    """)
+            ORDER BY id DESC
+        """)
 
+        bookings = cursor.fetchall()
 
-    bookings = cursor.fetchall()
+    except Exception as error:
 
+        print(
+            "ADMIN BOOKINGS ERROR:"
+        )
+
+        print(
+            error
+        )
+
+        connection.close()
+
+        return jsonify({
+            "success": False,
+            "message":
+                "Unable to load bookings."
+        }), 500
 
     connection.close()
 
@@ -595,9 +710,9 @@ def admin_bookings():
     ])
 
 
-# =========================
-# ADMIN - UPDATE STATUS
-# =========================
+# =========================================================
+# ADMIN - UPDATE BOOKING STATUS
+# =========================================================
 
 @app.route(
     "/admin/bookings/<int:booking_id>/status",
@@ -618,7 +733,6 @@ def update_booking_status(
 
     data = request.get_json()
 
-
     if not data:
 
         return jsonify({
@@ -632,6 +746,10 @@ def update_booking_status(
         "status"
     )
 
+
+    # -----------------------------------------------------
+    # ALLOWED STATUS
+    # -----------------------------------------------------
 
     allowed_statuses = [
         "Pending",
@@ -670,10 +788,13 @@ def update_booking_status(
     connection.commit()
 
 
+    # -----------------------------------------------------
+    # CHECK BOOKING
+    # -----------------------------------------------------
+
     if cursor.rowcount == 0:
 
         connection.close()
-
 
         return jsonify({
             "success": False,
@@ -698,9 +819,9 @@ def update_booking_status(
     })
 
 
-# =========================
+# =========================================================
 # ADMIN - DELETE BOOKING
-# =========================
+# =========================================================
 
 @app.route(
     "/admin/bookings/<int:booking_id>",
@@ -736,10 +857,13 @@ def delete_booking(
     connection.commit()
 
 
+    # -----------------------------------------------------
+    # CHECK BOOKING
+    # -----------------------------------------------------
+
     if cursor.rowcount == 0:
 
         connection.close()
-
 
         return jsonify({
             "success": False,
@@ -763,14 +887,11 @@ def delete_booking(
     })
 
 
-# =========================
-# START SERVER
-# =========================
+# =========================================================
+# START LOCAL SERVER
+# =========================================================
 
 if __name__ == "__main__":
-
-    create_table()
-
 
     app.run(
         debug=True,
