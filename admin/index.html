@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Shekhawati Gaming Zone — Admin Panel
+    </title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #07111f;
+            color: white;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            padding: 18px 28px;
+            background: #0b1728;
+            border-bottom: 1px solid #263c59;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-weight: bold;
+        }
+
+        .refresh-btn {
+            background: #1683ff;
+            color: white;
+        }
+
+        .logout-btn {
+            background: #ff4d3d;
+            color: white;
+        }
+
+        .container {
+            padding: 22px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(5, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .card {
+            background: #10223a;
+            border: 1px solid #294565;
+            border-radius: 10px;
+            padding: 18px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            color: #c4d1df;
+            margin-bottom: 8px;
+        }
+
+        .card-number {
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .tools {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        input {
+            background: #10223a;
+            border: 1px solid #345273;
+            color: white;
+            padding: 11px;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        #searchInput {
+            width: 260px;
+        }
+
+        .clear-btn {
+            background: #dbe7f5;
+            color: #162235;
+        }
+
+        .status-message {
+            margin-bottom: 12px;
+            color: #b9c9da;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 10px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 1250px;
+            border-collapse: collapse;
+            background: #0d1c30;
+        }
+
+        th {
+            background: #193b62;
+            padding: 13px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #29415e;
+            white-space: nowrap;
+        }
+
+        tr:nth-child(even) {
+            background: #102741;
+        }
+
+        tr:hover {
+            background: #173452;
+        }
+
+        .status-select {
+            background: #12263e;
+            color: white;
+            border: 1px solid #4a6886;
+            padding: 8px;
+            border-radius: 7px;
+        }
+
+        .delete-btn {
+            background: #ff503f;
+            color: white;
+            padding: 8px 12px;
+            margin-left: 5px;
+        }
+
+        .view-btn {
+            background: #1683ff;
+            color: white;
+            padding: 8px 12px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 30px;
+            color: #b9c9da;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-box {
+            width: min(500px, 100%);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #10223a;
+            border: 1px solid #3d5e80;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 15px 50px rgba(0,0,0,.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close-btn {
+            background: #ff4d3d;
+            color: white;
+            font-size: 18px;
+            padding: 6px 11px;
+        }
+
+        .detail {
+            display: grid;
+            grid-template-columns: 130px 1fr;
+            gap: 10px;
+            padding: 9px 0;
+            border-bottom: 1px solid #29415e;
+        }
+
+        .detail-label {
+            color: #9eb4cc;
+            font-weight: bold;
+        }
+
+        .detail-value {
+            word-break: break-word;
+        }
+
+        @media (max-width: 800px) {
+
+            .cards {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .header {
+                padding: 15px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .header-buttons {
+                justify-content: stretch;
+            }
+
+            .header-buttons button {
+                flex: 1;
+            }
+
+            .container {
+                padding: 12px;
+            }
+
+            #searchInput {
+                width: 100%;
+            }
+
+            .tools input {
+                width: 100%;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<header class="header">
+
+    <h1>
+        🎮 Shekhawati Gaming Zone — Admin Panel
+    </h1>
+
+    <div class="header-buttons">
+
+        <button
+            class="refresh-btn"
+            onclick="manualRefresh()"
+        >
+            🔄 Refresh
+        </button>
+
+        <button
+            class="logout-btn"
+            onclick="logoutAdmin()"
+        >
+            Logout
+        </button>
+
+    </div>
+
+</header>
+
+
+<main class="container">
+
+
+    <section class="cards">
+
+        <div class="card">
+
+            <div class="card-title">
+                Total Bookings
+            </div>
+
+            <div
+                class="card-number"
+                id="totalBookings"
+            >
+                0
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-title">
+                Pending
+            </div>
+
+            <div
+                class="card-number"
+                id="pendingBookings"
+            >
+                0
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-title">
+                Confirmed
+            </div>
+
+            <div
+                class="card-number"
+                id="confirmedBookings"
+            >
+                0
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-title">
+                Completed
+            </div>
+
+            <div
+                class="card-number"
+                id="completedBookings"
+            >
+                0
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-title">
+                Cancelled
+            </div>
+
+            <div
+                class="card-number"
+                id="cancelledBookings"
+            >
+                0
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section class="tools">
+
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="Search name, mobile, service..."
+        >
+
+        <input
+            type="date"
+            id="dateFilter"
+        >
+
+        <button
+            class="clear-btn"
+            onclick="clearFilters()"
+        >
+            Clear Filters
+        </button>
+
+    </section>
+
+
+    <div
+        id="status"
+        class="status-message"
+    >
+        Loading bookings...
+    </div>
+
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Name</th>
+
+                    <th>Mobile</th>
+
+                    <th>Service</th>
+
+                    <th>Booking Date</th>
+
+                    <th>Booking Time</th>
+
+                    <th>Received At</th>
+
+                    <th>Message</th>
+
+                    <th>Status</th>
+
+                    <th>Action</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="bookingTable">
+
+                <tr>
+
+                    <td
+                        colspan="10"
+                        class="empty"
+                    >
+                        Loading bookings...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</main>
+
+
+<!-- =========================
+     VIEW BOOKING MODAL
+========================= -->
+
+<div
+    id="bookingModal"
+    class="modal"
+>
+
+    <div class="modal-box">
+
+        <div class="modal-header">
+
+            <h2>
+                📋 Booking Details
+            </h2>
+
+            <button
+                class="close-btn"
+                onclick="closeBookingModal()"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Booking ID
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewId"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Name
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewName"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Mobile
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewMobile"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Service
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewService"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Booking Date
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewDate"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Booking Time
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewTime"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Received At
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewReceivedAt"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Status
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewStatus"
+            ></div>
+
+        </div>
+
+
+        <div class="detail">
+
+            <div class="detail-label">
+                Message
+            </div>
+
+            <div
+                class="detail-value"
+                id="viewMessage"
+            ></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- IMPORTANT:
+     admin.js is served by Flask
+-->
+
+<script src="/admin.js"></script>
+
+
+</body>
+
+</html>
