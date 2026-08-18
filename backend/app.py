@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify, send_from_directory, session, redirect
+from flask import Flask, request,jsonify, send_from_directory, session, redirect
 from flask_cors import CORS
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -14,10 +15,18 @@ BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
 
-load_dotenv(
-    os.path.join(BASE_DIR, ".env")
+ENV_FILE = os.path.join(
+    BASE_DIR,
+    ".env"
 )
 
+print("ENV FILE:", ENV_FILE)
+print("ENV EXISTS:", os.path.exists(ENV_FILE))
+
+load_dotenv(
+    ENV_FILE,
+    override=True
+)
 
 # =========================================================
 # FLASK APP
@@ -49,24 +58,10 @@ ADMIN_PASSWORD = os.getenv(
 
 
 # =========================================================
-# DATABASE SETTINGS
+# NEON POSTGRESQL DATABASE
 # =========================================================
 
-# Database ko backend folder ke andar rakhenge
-DATABASE_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
-
-DATABASE_PATH = os.path.join(
-    DATABASE_DIR,
-    "bookings.db"
-)
-
-# Folder ensure karo
-os.makedirs(
-    DATABASE_DIR,
-    exist_ok=True
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # =========================================================
@@ -75,11 +70,15 @@ os.makedirs(
 
 def get_database():
 
-    connection = sqlite3.connect(
-        DATABASE_PATH
-    )
+    if not DATABASE_URL:
+        raise Exception(
+            "DATABASE_URL environment variable is missing."
+        )
 
-    connection.row_factory = sqlite3.Row
+    connection = psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor
+    )
 
     return connection
 
@@ -120,7 +119,7 @@ def create_table():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
 
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
 
                 name TEXT NOT NULL,
 
@@ -146,12 +145,14 @@ def create_table():
         # CHECK EXISTING COLUMNS
         # -------------------------------------------------
 
-        cursor.execute(
-            "PRAGMA table_info(bookings)"
-        )
+        cursor.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'bookings'
+        """)
 
         columns = [
-            column["name"]
+            column["column_name"]
             for column in cursor.fetchall()
         ]
 
@@ -210,9 +211,7 @@ def create_table():
 
         cursor.execute("""
             UPDATE bookings
-
             SET status = 'Pending'
-
             WHERE status IS NULL
             OR status = ''
         """)
@@ -224,9 +223,7 @@ def create_table():
 
         cursor.execute("""
             UPDATE bookings
-
-            SET received_at = ?
-
+            SET received_at = %s
             WHERE received_at IS NULL
             OR received_at = ''
         """, (
@@ -241,11 +238,7 @@ def create_table():
         )
 
         print(
-            "Bookings table ready!"
-        )
-
-        print(
-            f"Database: {DATABASE_PATH}"
+            "Neon PostgreSQL bookings table ready!"
         )
 
         print(
@@ -268,6 +261,7 @@ def create_table():
 
     finally:
 
+        cursor.close()
         connection.close()
 
 
@@ -566,7 +560,9 @@ def booking():
                 received_at
             )
 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+
+            RETURNING id
         """, (
             name,
             mobile,
@@ -578,9 +574,11 @@ def booking():
             received_at
         ))
 
-        connection.commit()
+        result = cursor.fetchone()
 
-        booking_id = cursor.lastrowid
+        booking_id = result["id"]
+
+        connection.commit()
 
     except Exception as error:
 
@@ -602,6 +600,7 @@ def booking():
 
     finally:
 
+        cursor.close()
         connection.close()
 
 
@@ -693,6 +692,7 @@ def admin_bookings():
             error
         )
 
+        cursor.close()
         connection.close()
 
         return jsonify({
@@ -701,6 +701,7 @@ def admin_bookings():
                 "Unable to load bookings."
         }), 500
 
+    cursor.close()
     connection.close()
 
 
@@ -773,37 +774,57 @@ def update_booking_status(
     cursor = connection.cursor()
 
 
-    cursor.execute("""
-        UPDATE bookings
+    try:
 
-        SET status = ?
+        cursor.execute("""
+            UPDATE bookings
 
-        WHERE id = ?
-    """, (
-        status,
-        booking_id
-    ))
+            SET status = %s
+
+            WHERE id = %s
+        """, (
+            status,
+            booking_id
+        ))
+
+        connection.commit()
 
 
-    connection.commit()
+        # -------------------------------------------------
+        # CHECK BOOKING
+        # -------------------------------------------------
+
+        if cursor.rowcount == 0:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Booking not found."
+            }), 404
 
 
-    # -----------------------------------------------------
-    # CHECK BOOKING
-    # -----------------------------------------------------
+    except Exception as error:
 
-    if cursor.rowcount == 0:
+        connection.rollback()
 
-        connection.close()
+        print(
+            "STATUS UPDATE ERROR:"
+        )
+
+        print(
+            error
+        )
 
         return jsonify({
             "success": False,
             "message":
-                "Booking not found."
-        }), 404
+                "Unable to update booking status."
+        }), 500
 
+    finally:
 
-    connection.close()
+        cursor.close()
+        connection.close()
 
 
     print(
@@ -845,34 +866,54 @@ def delete_booking(
     cursor = connection.cursor()
 
 
-    cursor.execute("""
-        DELETE FROM bookings
+    try:
 
-        WHERE id = ?
-    """, (
-        booking_id,
-    ))
+        cursor.execute("""
+            DELETE FROM bookings
+
+            WHERE id = %s
+        """, (
+            booking_id,
+        ))
+
+        connection.commit()
 
 
-    connection.commit()
+        # -------------------------------------------------
+        # CHECK BOOKING
+        # -------------------------------------------------
+
+        if cursor.rowcount == 0:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Booking not found."
+            }), 404
 
 
-    # -----------------------------------------------------
-    # CHECK BOOKING
-    # -----------------------------------------------------
+    except Exception as error:
 
-    if cursor.rowcount == 0:
+        connection.rollback()
 
-        connection.close()
+        print(
+            "DELETE BOOKING ERROR:"
+        )
+
+        print(
+            error
+        )
 
         return jsonify({
             "success": False,
             "message":
-                "Booking not found."
-        }), 404
+                "Unable to delete booking."
+        }), 500
 
+    finally:
 
-    connection.close()
+        cursor.close()
+        connection.close()
 
 
     print(
@@ -885,6 +926,40 @@ def delete_booking(
         "message":
             "Booking deleted successfully."
     })
+
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+
+@app.route("/health")
+def health():
+
+    try:
+
+        connection = get_database()
+
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT 1")
+
+        cursor.fetchone()
+
+        cursor.close()
+        connection.close()
+
+        return jsonify({
+            "success": True,
+            "database": "connected"
+        })
+
+    except Exception as error:
+
+        return jsonify({
+            "success": False,
+            "database": "error",
+            "message": str(error)
+        }), 500
 
 
 # =========================================================
