@@ -5,6 +5,7 @@ from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+from flask import redirect, url_for
 
 
 # =========================================================
@@ -510,20 +511,18 @@ def admin_login():
 # ADMIN LOGOUT
 # =========================================================
 
-@app.route(
-    "/admin/logout",
-    methods=["POST"]
-)
+@app.route("/admin/logout", methods=["POST"])
 def admin_logout():
-
     session.clear()
 
+    response = redirect(url_for("admin_login"))
 
-    return jsonify({
-        "success": True,
-        "message":
-            "Logged out successfully."
-    })
+    # Prevent browser from caching admin pages
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    return response
 
 
 # =========================================================
