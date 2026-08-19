@@ -1603,100 +1603,40 @@ async function deleteBooking(
 
 async function logoutAdmin() {
 
-    const confirmLogout =
-        confirm(
-            "Are you sure you want to logout?"
-        );
-
+    const confirmLogout = confirm(
+        "Are you sure you want to logout?"
+    );
 
     if (!confirmLogout) {
-
         return;
-
     }
-
 
     try {
 
-        const response =
-            await fetch(
-                "/admin/logout",
-                {
+        const response = await fetch("/admin/logout", {
+            method: "POST",
+            credentials: "same-origin"
+        });
 
-                    method:
-                        "POST",
-
-                    credentials:
-                        "same-origin"
-
-                }
-            );
-
-
-        if (
-            response.status ===
-            401
-        ) {
-
-            window.location.href =
-                "/admin/login";
-
+        if (!response.ok) {
+            alert("Failed to logout.");
             return;
-
         }
 
-
-        const result =
-            await response.json();
-
-
-        if (
-            !response.ok ||
-            !result.success
-        ) {
-
-            alert(
-                result.message ||
-                "Failed to logout."
-            );
-
-            return;
-
+        if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+            autoRefreshTimer = null;
         }
 
+        // Redirect to admin login
+        window.location.replace("/admin/login");
 
-        if (
-            autoRefreshTimer
-        ) {
+    } catch (error) {
 
-            clearInterval(
-                autoRefreshTimer
-            );
+        console.error("Logout Error:", error);
 
-            autoRefreshTimer =
-                null;
-
-        }
-
-
-        window.location.href =
-            "/admin/login";
-
+        alert("Unable to connect to the server.");
     }
-    catch (error) {
-
-        console.error(
-            "Logout Error:",
-            error
-        );
-
-
-        alert(
-            "Unable to connect to the server."
-        );
-
-    }
-
 }
 
 
